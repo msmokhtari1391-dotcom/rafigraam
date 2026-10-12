@@ -1,0 +1,44 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "rafigram-web",
+      "runtimeExecutable": "D:\\coding\\messenger\\.venv\\Scripts\\python.exe",
+      "runtimeArgs": [
+        "D:\\coding\\messenger\\.tmp\\web_app_local.py"
+      ],
+      "port": 8551
+    },
+    {
+      "name": "rafigram-pwa",
+      "runtimeExecutable": "D:\\coding\\messenger\\.venv\\Scripts\\python.exe",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8552",
+        "-d",
+        "D:\\coding\\messenger\\dist\\web"
+      ],
+      "port": 8552
+    },
+    {
+      "name": "rafigram-webtest",
+      "runtimeExecutable": "D:\\coding\\messenger\\.venv\\Scripts\\python.exe",
+      "runtimeArgs": [
+        "D:\\coding\\messenger\\.tmp\\webserve.py",
+        "8770",
+        "D:\\coding\\messenger\\dist\\web"
+      ],
+      "port": 8770
+    },
+    {
+      "name": "rafigram-mime",
+      "runtimeExecutable": "D:\\coding\\messenger\\.venv\\Scripts\\python.exe",
+      "runtimeArgs": [
+        "-c",
+        "import functools, http.server, sys\nclass H(http.server.SimpleHTTPRequestHandler):\n    extensions_map = {**http.server.SimpleHTTPRequestHandler.extensions_map,\n                      '.mjs': 'application/javascript', '.wasm': 'application/wasm'}\n    def log_message(self, *a): pass\nhttp.server.ThreadingHTTPServer(('127.0.0.1', 8553),\n    functools.partial(H, directory='.tmp/probe_web')).serve_forever()"
+      ],
+      "port": 8553
+    }
+  ]
+}

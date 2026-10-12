@@ -1,0 +1,66 @@
+  547 |         d.pop("good", None)
+ 1142 | _nav_stack: list[tuple] = []
+ 1159 |     page._nav_who = who
+ 1162 | def _nav_same(entry, page):
+ 1166 |     who = getattr(page, "_nav_who", None)
+ 1181 |     `back` سازنده‌ی همین صفحه + آرگومان‌هایش است و در `_nav_stack` می‌نشیند
+ 1189 |          `super.popRoute()` یعنی `SystemNavigator.pop()` = خروج از برنامه.
+ 1192 |          هندلرِ ما (`_soft_back`) ⇒ برگشتِ نرم؛ پشته‌ی فلاتر همیشه همان
+ 1199 |         if not _nav_stack or _nav_stack[-1] != back:
+ 1200 |             _nav_stack.append(back)
+ 1201 |         if len(_nav_stack) > 30:           # سقفِ حافظه؛ تهِ قدیمی می‌رود
+ 1202 |             del _nav_stack[:-30]
+ 1226 |         views = list(page.views or [])
+ 1239 |             page.views.clear()
+ 1240 |             page.views.extend([hold, ft.View(route=f"/app:{seq}", padding=0,
+ 1242 |         elif getattr(views[-1], "route", "").startswith("/app:"):
+ 1250 |             page.views.clear()
+ 1251 |             page.views.extend([ft.View(route="/hold", padding=0,
+ 1256 |             page.views.clear()
+ 1257 |             page.views.extend([hold, ft.View(route=f"/app:{seq}", padding=0,
+ 1262 |         page.views[-1].controls = [root]
+ 1277 |             # `page._nav_who` کهنه می‌ماند و Backِ بعدی اشتباه می‌رود.
+ 1278 |             page.views[-1].controls = [root]
+ 1300 |     گامِ ۱ با «نشانه‌ی صفحه‌ی جاری» (`_nav_who`) انجام می‌شود، نه با مقایسه‌ی
+ 1307 |         while _nav_stack and _nav_same(_nav_stack[-1], page):
+ 1308 |             _nav_stack.pop()
+ 1310 |         if _nav_stack and len(_nav_stack[-1]) == len(here) \
+ 1311 |                 and _nav_stack[-1][0] is fn and _nav_stack[-1][1:] == here[1:]:
+ 1312 |             _nav_stack.pop()
+ 1313 |         if _nav_stack and _nav_stack[-1] is here:
+ 1314 |             _nav_stack.pop()          # دفاعی: تکرارِ پشت‌سرهم
+ 1329 | def _soft_back(page, dest=None):
+ 1332 |     پشته `_nav_stack` برای *هر صفحه‌ی بازشده* یک ورودی دارد (خودش)، پس
+ 1336 |     if getattr(page, "_nav_who", None) is None:
+ 1340 |         _nav_stack.clear()
+ 1341 |     while _nav_stack and _nav_same(_nav_stack[-1], page):
+ 1342 |         _nav_stack.pop()
+ 1343 |     target = _nav_stack.pop() if _nav_stack else None
+ 1369 | def _close_top_dialog(page):
+ 1373 |     `page.views` را می‌بیند و `page._dialogs` را اصلاً نمی‌شناسد. پس بدون
+ 1391 |         top = controls[-1]
+ 1417 | def _wire_back(page):
+ 1430 |     def _on_pop(_v=None):
+ 1431 |         # ⚠️ مهم‌ترین اصلاحِ بک: فلاتر در Backِ سیستمی *فقط* `page.views` را
+ 1435 |         # فقط `views.length` و `can_pop` را می‌خواند.) پس اول دیالوگ را
+ 1437 |         if _close_top_dialog(page):
+ 1440 |             views = list(page.views or [])
+ 1448 |             page.views.clear()
+ 1449 |             page.views.extend([hold, ft.View(route=f"/app:{seq}", padding=0,
+ 1455 |             _soft_back(page)
+ 1460 |         page.on_view_pop = _on_pop
+ 2003 |             ws_client.remove_global_listener(_ws_hooks.pop())
+ 2959 |                 updater._dl_cache.pop("dir", None)   # دوباره بسنج
+ 4365 |     # در پشته نمی‌نشست، پس Backِ گوشی `_nav_stack.clear()` می‌کرد و فهرستِ
+ 4367 |     # `can_pop=False` را خودِ فلاتر (نه ما) می‌خواند و pop را رد می‌کند.
+ 4370 |         page.views[-1].can_pop = False
+ 7671 |         st["keys"].pop(mid, None)
+ 7672 |         st["wraps"].pop(mid, None)
+ 7700 |         old = st["wraps"].pop(mid, None)
+ 7701 |         st["keys"].pop(mid, None)
+ 7741 |             msg_list.controls[-1] = _bubble(
+ 8995 |                 st["typers"].pop(k, None)
+ 9250 |                 head_title.controls[-1].value = other["display_name"] or ""
+ 9363 |         st["typers"].pop(data.get("sender_name") or "", None)
+ 9403 |             other.pop("online", None)
+11209 |     _wire_back(page)               # Back گوشی ⇒ برگشتِ نرم، نه خروج

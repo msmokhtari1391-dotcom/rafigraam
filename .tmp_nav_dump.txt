@@ -1,0 +1,363 @@
+ 1138 | # هر `_go` مقصدش را این‌جا می‌نویسد؛ Back سیستمی (`_on_back`) آخرین مقصد را
+ 1139 | # از پشته برمی‌دارد و همان صفحه را از نو می‌سازد — به‌جای اینکه از برنامه
+ 1140 | # بیرون برود. ورودیِ پشته `(سازنده، *آرگومان‌ها)` است، مثلاً
+ 1141 | # `(chat_page, chat_id)` یا `(chat_list_page, False)`.
+ 1142 | _nav_stack: list[tuple] = []
+ 1143 | # شمارنده‌ی مسیرِ یکتا برای View ریشه — هر `_go` عددی تازه می‌گیرد تا
+ 1144 | # `_pendingPoppedViewRoutes` فلاتر هیچ‌وقت Viewی ازنوساخته را فیلتر نکند.
+ 1145 | import itertools as _itertools
+ 1146 | _nav_seq = _itertools.count(1)
+ 1147 | 
+ 1148 | 
+ 1149 | def _nav_mark(page, who):
+ 1150 |     """نشانه‌ی صفحه‌ی *همین حالا* — روی خودِ `page` می‌نشیند.
+ 1151 | 
+ 1152 |     چرا لازم است: ورودیِ پشته = «سازنده + آرگومان» است و برای تشخیصِ
+ 1153 |     «همین صفحه» کافی نیست. نمونه: `settings_page` با `_back(page, settings_page)`
+ 1154 |     از `chat_settings_page` باز می‌شود، ولی خودِ `chat_settings_page` هم با
+ 1155 |     `_back(page, settings_page)` باز می‌شود — پس اگر فقط به آرگومان‌ها نگاه
+ 1156 |     کنیم، این دو صفحه یکی به نظر می‌رسند و Back «هیچ‌کاری نمی‌کند».
+ 1157 |     این نشانه هر بار که صفحه‌ای واقعاً رندر می‌شود تازه می‌شود.
+ 1158 |     """
+ 1159 |     page._nav_who = who
+ 1160 | 
+ 1161 | 
+ 1162 | def _nav_same(entry, page):
+ 1163 |     """آیا این ورودیِ پشته، صفحه‌ی همین لحظه است؟"""
+ 1164 |     if entry is None:
+ 1165 |         return False
+ 1166 |     who = getattr(page, "_nav_who", None)
+ 1167 |     try:
+ 1168 |         if who is not None and entry[0] is who[0]:
+ 1169 |             a1, b1 = entry[1:], who[1:]
+ 1170 |             if len(a1) == len(b1):
+ 1171 |                 return all(x is y or x == y for x, y in zip(a1, b1))
+ 1172 |     except Exception:
+ 1173 |         pass
+ 1174 |     return False
+ 1175 | 
+ 1176 | 
+ 1177 | def _go(page, body, pattern=False, dx=0.0, back=None):
+ 1178 |     """رفتن به یک صفحه‌ی جدید: پس‌زمینه‌ی درخشان + بدنه.
+ 1179 | 
+ 1180 |     `dx` گذارِ کشویی می‌سازد (مثلِ بازشدنِ گفت‌وگو در تلگرام)؛ صفر = فقط محو.
+ 1181 |     `back` سازنده‌ی همین صفحه + آرگومان‌هایش است و در `_nav_stack` می‌نشیند
+ 1182 |     تا دکمه‌ی Back گوشی به همین‌جا برگردد.
+ 1183 | 
+ 1184 |     ⚠️ دو درسِ بیلدِ ۱۲، هر دو سنجیده‌شده روی سورسِ خودِ فلت:
+ 1185 |       ۱) View پیش‌فرض `padding: EdgeInsets.all(10)` دارد ⇒ برنامه‌ی
+ 1186 |          تمام‌صفحه ده پیکسل قابِ مشکی می‌گرفت. پس `padding=0`.
+ 1187 |       ۲) Back اندروید (`_handleSystemPopRoute` در flet-0.86.5) *فقط* وقتی
+ 1188 |          `view_pop` می‌فرستد که `views.length > 1` باشد؛ با یک View،
+ 1189 |          `super.popRoute()` یعنی `SystemNavigator.pop()` = خروج از برنامه.
+ 1190 |          پس پشته همیشه دو View دارد: ریشه (زنده، محتوای واقعی) + حضانتی
+ 1191 |          پشتِ آن (خالی، هرگز رندرِ دیده‌شده نمی‌شود). Back ⇒ view_pop ⇒
+ 1192 |          هندلرِ ما (`_soft_back`) ⇒ برگشتِ نرم؛ پشته‌ی فلاتر همیشه همان
+ 1193 |          دو View می‌ماند، پس هیچ‌وقت از برنامه بیرون نمی‌زند.
+ 1194 |     """
+ 1195 |     if back is not None:
+ 1196 |         # تکراریِ پشت‌سرِهم ثبت نمی‌شود: صفحه‌ها خودشان را دوباره می‌سازند
+ 1197 |         # (هر toggle یک `await same_page(page)`) و بی این شرط، پشته پر از
+ 1198 |         # دوقلو می‌شد و Back «هیچ‌کاری نمی‌کند» — چون به همان صفحه برمی‌گشت.
+ 1199 |         if not _nav_stack or _nav_stack[-1] != back:
+ 1200 |             _nav_stack.append(back)
+ 1201 |         if len(_nav_stack) > 30:           # سقفِ حافظه؛ تهِ قدیمی می‌رود
+ 1202 |             del _nav_stack[:-30]
+ 1203 |     page.bgcolor = P["bg0"]
+ 1204 |     page.rtl = i18n.rtl()
+ 1205 |     page.theme = ui.flet_theme()
+ 1206 |     page.theme_mode = (ft.ThemeMode.LIGHT if ui.is_light()
+ 1207 |                        else ft.ThemeMode.DARK)
+ 1208 |     ui.set_device(page)          # اندازه‌ی صفحه ممکنه عوض شده باشه (چرخشِ گوشی)
+ 1209 |     bg_img = prefs.get("chat_bg")
+ 1210 |     # تاریِ کاغذدیواری روی گوشی همیشه صفر: `ui.photo_bg` خودش هم صفرش می‌کند،
+ 1211 |     # ولی این‌جا هم صریح می‌گوییم تا مقصود گم نشود (یک BackdropFilterِ
+ 1212 |     # تمام‌صفحه پشتِ گفت‌وگو = لگِ اسکرول در گوشیِ ضعیف).
+ 1213 |     bg_blur = "0" if ui.is_phone() else prefs.get("chat_bg_blur")
+ 1214 |     if pattern and (prefs.flag("pattern") or bg_img):
+ 1215 |         root = ft.Stack(
+ 1216 |             [*ui.chat_backdrop(bg_src=(_media(bg_img) if bg_img else None),
+ 1217 |                                dim=prefs.get("chat_bg_dim"),
+ 1218 |                                blur=bg_blur,
+ 1219 |                                pattern=prefs.flag("pattern")),
+ 1220 |              ui.safe(body)], expand=True)
+ 1221 |     else:
+ 1222 |         root = ui.screen(page, body)
+ 1223 |     # محوشدنِ نرمِ کلِ صفحه هنگامِ جابه‌جایی (حسِ گذارِ تلگرام)
+ 1224 |     ui.prep_in(root, dx=dx, dy=0.0, ms=ui.MED)
+ 1225 |     try:
+ 1226 |         views = list(page.views or [])
+ 1227 |         # ⚠️ دو قاعده که هر دو روی سورسِ flet-0.86.5 سنجیده شدند:
+ 1228 |         #  ۱) Navigator فلاتر *آخری* (بالا) را نشان می‌دهد ⇒ پشته همیشه
+ 1229 |         #     [حضانتی، ریشه] است؛ ریشه دیده می‌شود، حضانتی زیرش می‌ماند.
+ 1230 |         #  ۲) Back اندروید: `_handleSystemPopRoute` با طولِ >1 کار می‌کند،
+ 1231 |         #     *آخری* را pop می‌کند و مسیرِ popشده را در
+ 1232 |         #     `_pendingPoppedViewRoutes` می‌نویسد — هر Viewی با همان مسیر
+ 1233 |         #     تا عوض‌شدنِ مجموعه‌ی مسیرها از رندر *حذف* می‌شود! پس مسیرِ
+ 1234 |         #     ریشه باید یکتا باشد (`/app:<شمارنده>`)؛ وگرنه Viewی ازنوساخته
+ 1235 |         #     فیلتر می‌شد و کاربر «صفحه‌ی سیاهِ بعد از Back» می‌دید.
+ 1236 |         seq = next(_nav_seq)
+ 1237 |         if not views or len(views) < 2:
+ 1238 |             hold = ft.View(route="/hold", padding=0, bgcolor=P["bg0"])
+ 1239 |             page.views.clear()
+ 1240 |             page.views.extend([hold, ft.View(route=f"/app:{seq}", padding=0,
+ 1241 |                                              bgcolor=P["bg0"])])
+ 1242 |         elif getattr(views[-1], "route", "").startswith("/app:"):
+ 1243 |             # Viewی ریشه از قبل هست؛ Viewی *تازه* با مسیرِ یکتا می‌سازیم
+ 1244 |             # (تغییرِ مسیرِ Viewی چسبیده = پرچمِ popشده در فلاتر ممکن است
+ 1245 |             # رندر را قفل کند — همان «فلاش و هیچ»). حضانتی هم زیرش.
+ 1246 |             views = [v for v in views
+ 1247 |                      if getattr(v, "route", "") != "/hold"]
+ 1248 |             views.append(ft.View(route=f"/app:{seq}", padding=0,
+ 1249 |                                  bgcolor=P["bg0"]))
+ 1250 |             page.views.clear()
+ 1251 |             page.views.extend([ft.View(route="/hold", padding=0,
+ 1252 |                                        bgcolor=P["bg0"])] + views)
+ 1253 |         else:
+ 1254 |             # پشته دست‌کاری بیرونی شده؛ از نو بساز
+ 1255 |             hold = ft.View(route="/hold", padding=0, bgcolor=P["bg0"])
+ 1256 |             page.views.clear()
+ 1257 |             page.views.extend([hold, ft.View(route=f"/app:{seq}", padding=0,
+ 1258 |                                              bgcolor=P["bg0"])])
+ 1259 |         # ⚠️ محتوا باید برود داخل *آخری* — همانی که Navigator نشان می‌دهد.
+ 1260 |         # نوشتن در `page.controls` (=views[0]=حضانتی) دقیقاً «صفحه‌ی سیاه»
+ 1261 |         # می‌ساخت (اثبات‌شده با پروبِ پیکسلی).
+ 1262 |         page.views[-1].controls = [root]
+ 1263 |         page.update()
+ 1264 |         # فقط حالا که رندر واقعاً انجام شد، این صفحه = «صفحه‌ی جاری» است.
+ 1265 |         # این نشانه را دکمه‌ی Back می‌خواند تا ورودیِ *خودش* را از پشته بردارد.
+ 1266 |         _nav_mark(page, back)
+ 1267 |     except Exception as ex:
+ 1268 |         # مسیرِ View شکست خورد ⇒ fallback قدیمی. بی لاگ، این شکست بی‌صدا
+ 1269 |         # «فلاش و هیچ» می‌شد (Back کار نمی‌کرد) و پیدا کردنش ناممکن.
+ 1270 |         log.warning("صفحه via View ننشست (%s: %.200s) → page.add",
+ 1271 |                     type(ex).__name__, str(ex))
+ 1272 |         try:
+ 1273 |             # ⚠️ `page.add` روی `page.controls` می‌نویسد و آن یعنی
+ 1274 |             # `views[0]` = Viewِ *پنهانِ* `/hold` — یعنی دقیقاً همان «صفحهٔ
+ 1275 |             # سیاهِ بعد از Back». پس محتوا را دستی می‌نشانیم روی Viewی که
+ 1276 |             # Navigator نشان می‌دهد، و نشانه را هم تازه می‌کنیم وگرنه
+ 1277 |             # `page._nav_who` کهنه می‌ماند و Backِ بعدی اشتباه می‌رود.
+ 1278 |             page.views[-1].controls = [root]
+ 1279 |             page.update()
+ 1280 |             _nav_mark(page, back)
+ 1281 |         except Exception:
+ 1282 |             pass
+ 1283 |     try:
+ 1284 |         page.run_task(ui.enter, page, root, stagger=0.0, first_delay=0.0)
+ 1285 |     except Exception:
+ 1286 |         ui.play_in(root)
+ 1287 |         page.update()
+ 1288 | 
+ 1289 | 
+ 1290 | def _back(page, fn, *a):
+ 1291 |     """دکمه‌ی برگشت — جهتش با زبان عوض می‌شه.
+ 1292 | 
+ 1293 |     ⚠️ خواسته‌ی کاربر: «تور برمیگردونه صفحه‌ای ک ازش وارد این بخش جدید شدی»
+ 1294 |     — یعنی `fn` همان صفحه‌ای است که با فلشِ همین صفحه برمی‌گردیم. پس:
+ 1295 | 
+ 1296 |       ۱) ورودیِ *همین* صفحه از سرِ پشته برداشته می‌شود (وگرنه به خودِ
+ 1297 |          همین صفحه برمی‌گردیم و کاربر می‌بیند «هیچی نشد»).
+ 1298 |       ۲) `fn` روی صفحه‌ی پشته **برنده** می‌شود و برمی‌گردیم.
+ 1299 | 
+ 1300 |     گامِ ۱ با «نشانه‌ی صفحه‌ی جاری» (`_nav_who`) انجام می‌شود، نه با مقایسه‌ی
+ 1301 |     `fn` — وگرنه `settings_page` و `chat_settings_page` (که هر دو با
+ 1302 |     `_back(page, settings_page)` باز می‌شوند) یکی شمرده می‌شدند.
+ 1303 |     """
+ 1304 |     here = (fn, *a)
+ 1305 | 
+ 1306 |     def _go_back(_e=None):
+ 1307 |         while _nav_stack and _nav_same(_nav_stack[-1], page):
+ 1308 |             _nav_stack.pop()
+ 1309 |         # اگر به هر حال ورودیِ این صفحه سرِ پشته است، آن را هم بردار
+ 1310 |         if _nav_stack and len(_nav_stack[-1]) == len(here) \
+ 1311 |                 and _nav_stack[-1][0] is fn and _nav_stack[-1][1:] == here[1:]:
+ 1312 |             _nav_stack.pop()
+ 1313 |         if _nav_stack and _nav_stack[-1] is here:
+ 1314 |             _nav_stack.pop()          # دفاعی: تکرارِ پشت‌سرهم
+ 1315 |         # `fn` خودش مقصدِ درست است ⇒ مستقیم همان را می‌سازیم و از پشته
+ 1316 |         # نمی‌گذریم (پشته فقط برای Back سیستمیِ گوشی می‌ماند).
+ 1317 |         # نشانه را پاک نمی‌کنیم: اگر `fn` exception بدهد و `_go`اش رندر نکند،
+ 1318 |         # کاربر همچنان روی همین صفحه است و Backِ بعدی هم باید همین را بشناسد.
+ 1319 |         try:
+ 1320 |             page.run_task(fn, page, *a)
+ 1321 |         except Exception:
+ 1322 |             page.run_task(chat_list_page, page)
+ 1323 | 
+ 1324 |     return ui.icon_btn("arrow_right" if i18n.rtl() else "arrow_left",
+ 1325 |                        tip=t("back"),
+ 1326 |                        on_click=_go_back)
+ 1327 | 
+ 1328 | 
+ 1329 | def _soft_back(page, dest=None):
+ 1330 |     """Back سیستمی (اندروید/وب) یا هر مسیرِ نرمِ دیگر: یک پله عقب.
+ 1331 | 
+ 1332 |     پشته `_nav_stack` برای *هر صفحه‌ی بازشده* یک ورودی دارد (خودش)، پس
+ 1333 |     اول ورودیِ صفحه‌ی جاری برداشته می‌شود و بعد مقصدِ بعدی ساخته می‌شود.
+ 1334 |     پشته که خالی شد یعنی در ریشه‌ایم ⇒ فهرستِ گفت‌وگوها (هرگز خروج نه).
+ 1335 |     """
+ 1336 |     if getattr(page, "_nav_who", None) is None:
+ 1337 |         # نشانه‌ی صفحه‌ی جاری گم است ⇒ نمی‌دانیم کجاییم. یک ورودیِ کور
+ 1338 |         # برداشتن یعنی «شاید دوباره همین صفحه» ⇒ پس پشته را می‌ریزیم و
+ 1339 |         # به ریشه می‌رویم. امن‌تر از برگشتنِ اشتباه است.
+ 1340 |         _nav_stack.clear()
+ 1341 |     while _nav_stack and _nav_same(_nav_stack[-1], page):
+ 1342 |         _nav_stack.pop()
+ 1343 |     target = _nav_stack.pop() if _nav_stack else None
+ 1344 |     import sys as _sys2
+ 1345 |     print(f"[BACK] pop→{getattr(target[0], '__name__', None) if target else None}",
+ 1346 |           file=_sys2.stderr, flush=True)
+ 1347 |     if target is None:
+ 1348 |         _nav_mark(page, None)
+ 1349 |         page.run_task(chat_list_page, page)
+ 1350 |         return
+ 1351 |     try:
+ 1352 |         fn, *args = target
+ 1353 |     except Exception:
+ 1354 |         _nav_mark(page, None)
+ 1355 |         page.run_task(chat_list_page, page)
+ 1356 |         return
+ 1357 |     try:
+ 1358 |         _nav_mark(page, None)
+ 1359 |         page.run_task(fn, page, *args)
+ 1360 |     except Exception as ex:
+ 1361 |         print(f"[BACK] nav to {getattr(fn, '__name__', fn)} failed: {ex!r}",
+ 1362 |               file=_sys2.stderr, flush=True)
+ 1363 |         try:
+ 1364 |             page.run_task(chat_list_page, page)
+ 1365 |         except Exception:
+ 1366 |             pass
+ 1367 | 
+ 1368 | 
+ 1369 | def _close_top_dialog(page):
+ 1370 |     """اگر دیالوگی باز است، فقط همان را می‌بندد. `True` یعنی کار تمام شد.
+ 1371 | 
+ 1372 |     ⚠️ چرا لازم است: `_handleSystemPopRoute` در flet-0.86.5 *فقط*
+ 1373 |     `page.views` را می‌بیند و `page._dialogs` را اصلاً نمی‌شناسد. پس بدون
+ 1374 |     این نگهبان، Backِ سیستمی با ۶۰+ دیالوگِ برنامه این کار را می‌کرد:
+ 1375 |     صفحه را یک پله می‌برد عقب و دیالوگ روی صفحهٔ تازه باقی می‌ماند.
+ 1376 | 
+ 1377 |     نکتهٔ ظریف: `_dialogs.controls` شامل SnackBar هم هست (توست‌ها از
+ 1378 |     `show_dialog` استفاده می‌کنند). SnackBar خودش بعد از چند ثانیه
+ 1379 |     می‌رود، ولی تا آن لحظه یک Backِ اضافی را می‌بلع — که همان چیزی است
+ 1380 |     که کاربر انتظارش را ندارد. پس فقط چیزی را می‌بندیم که واقعاً «باز» است.
+ 1381 | 
+ 1382 |     ⚠️ و `page._dialogs` یک ویژگیِ *خصوصی*ِ فلات است و ممکن است در نسخهٔ
+ 1383 |     بعدی عوض شود. اگر نبود یا ساختارش فرق داشت، `False` می‌دهیم تا رفتار
+ 1384 |     مثلِ قبل (ناوبری) بماند — بهتر از کرشِ Back است.
+ 1385 |     """
+ 1386 |     try:
+ 1387 |         dlgs = getattr(page, "_dialogs", None)
+ 1388 |         controls = list(getattr(dlgs, "controls", None) or [])
+ 1389 |         if not controls:
+ 1390 |             return False
+ 1391 |         top = controls[-1]
+ 1392 |         # SnackBar خودش محو می‌شود؛ دست‌زدن به آن Back را می‌بلع.
+ 1393 |         if isinstance(top, ft.SnackBar):
+ 1394 |             return False
+ 1395 |         if not getattr(top, "open", True):
+ 1396 |             return False
+ 1397 |     except Exception:
+ 1398 |         return False
+ 1399 |     try:
+ 1400 |         # ⚠️ `pop_dialog()` فقط *آخرین* دیالوگ را می‌بندد و به لایه‌های زیرش
+ 1401 |         # دست نمی‌زند. اگر خودش exception بدهد یا چیزی کم نکرد، مستقیم از
+ 1402 |         # پشته برمی‌داریم تا Back در هیچ حالتی گیر نکند.
+ 1403 |         page.pop_dialog()
+ 1404 |         if top in getattr(page._dialogs, "controls", []):
+ 1405 |             page._dialogs.controls.remove(top)
+ 1406 |             page._dialogs.update()
+ 1407 |         return True
+ 1408 |     except Exception:
+ 1409 |         try:
+ 1410 |             page._dialogs.controls.remove(top)
+ 1411 |             page._dialogs.update()
+ 1412 |             return True
+ 1413 |         except Exception:
+ 1414 |             return False
+ 1415 | 
+ 1416 | 
+ 1417 | def _wire_back(page):
+ 1418 |     """دکمه‌ی Back سیستمیِ گوشی را به پشته‌ی خودمان وصل می‌کند.
+ 1419 | 
+ 1420 |     ⚠️ نکته‌ی حیاتی (از سورسِ flet-0.86.5 خوانده شد): `_handleSystemPopRoute`
+ 1421 |     فقط وقتی `view_pop` می‌فرستد که `views.length > 1` باشد و *آخری* را
+ 1422 |     pop می‌کند. پس `_go` پشته را همیشه `[حضانتی، ریشه]` نگه می‌دارد —
+ 1423 |     ریشه دیده می‌شود (Navigator آخری را نشان می‌دهد) و Back، ریشه را pop
+ 1424 |     می‌کند و `view_pop` به این‌جا می‌آید. این تابع *پیش* از برگشتِ نرم،
+ 1425 |     هم Viewی popشده را بازسازی می‌کند و هم یک Viewِ حضانتیِ *تازه* پشتِ
+ 1426 |     ریشه می‌نشاند؛ ترتیب نهایی دوباره `[حضانتی، ریشه]` است، پس صفحه‌ی
+ 1427 |     سیاهِ Viewِ خالی (که کاربر گزارش کرد) هرگز دیده نمی‌شود و Backِ بعدی
+ 1428 |     هم دوباره به ما می‌رسد نه به SystemNavigator.
+ 1429 |     """
+ 1430 |     def _on_pop(_v=None):
+ 1431 |         # ⚠️ مهم‌ترین اصلاحِ بک: فلاتر در Backِ سیستمی *فقط* `page.views` را
+ 1432 |         # نگاه می‌کند (نه `_dialogs`) — پس با یک دیالوگِ باز، بک به‌جای
+ 1433 |         # بستنِ دیالوگ، کلِ صفحه را یک پله می‌برد عقب و دیالوگ روی صفحهٔ
+ 1434 |         # تازه باقی می‌ماند. (سنجیده روی سورسِ flet-0.86.5: `_handleSystemPopRoute`
+ 1435 |         # فقط `views.length` و `can_pop` را می‌خواند.) پس اول دیالوگ را
+ 1436 |         # می‌بندیم و همان‌جا کار تمام می‌شود.
+ 1437 |         if _close_top_dialog(page):
+ 1438 |             return
+ 1439 |         try:
+ 1440 |             views = list(page.views or [])
+ 1441 |             hold = next((v for v in views
+ 1442 |                          if getattr(v, "route", "") == "/hold"), None)
+ 1443 |             if hold is None:
+ 1444 |                 hold = ft.View(route="/hold", padding=0, bgcolor=P["bg0"])
+ 1445 |             # ریشه‌ی popشده مسیرِ یکتا داشت؛ Viewی تازه با مسیرِ *تازه‌تر*
+ 1446 |             # می‌سازیم تا در `_pendingPoppedViewRoutes` گیر نکند.
+ 1447 |             seq = next(_nav_seq)
+ 1448 |             page.views.clear()
+ 1449 |             page.views.extend([hold, ft.View(route=f"/app:{seq}", padding=0,
+ 1450 |                                              bgcolor=P["bg0"])])
+ 1451 |             page.update()
+ 1452 |         except Exception:
+ 1453 |             pass
+ 1454 |         try:
+ 1455 |             _soft_back(page)
+ 1456 |         except Exception:
+ 1457 |             pass
+ 1458 | 
+ 1459 |     try:
+ 1460 |         page.on_view_pop = _on_pop
+ 1461 |     except Exception:
+ 1462 |         pass
+ 1463 | 
+ 1464 | 
+ 1465 | def _toast(page, text, ok=False, action=None, on_action=None):
+ 1466 |     """پیام کوتاه پایین صفحه.
+ 1467 | 
+ 1468 |     `action`/`on_action` یک دکمه‌ی متنی کنارش می‌گذارد («ذخیره شد — دیدن»)،
+ 1469 |     همان کاری که تلگرام سرِ ذخیره و فوروارد می‌کند. بی این دو، رفتار مثل
+ 1470 |     قبل است.
+ 1471 |     """
+ 1472 |     try:
+ 1473 |         act = None
+ 1474 |         if action and on_action:
+ 1475 |             act = ft.SnackBarAction(label=str(action), text_color="#ffffff",
+ 1476 |                                     on_click=lambda e: on_action())
+ 1477 |         page.show_dialog(ft.SnackBar(
+ 1478 |             ft.Text(text, size=fs(13), color="#ffffff"),
+ 1479 |             bgcolor=P["ok"] if ok else P["acc"],
+ 1480 |             behavior=ft.SnackBarBehavior.FLOATING,
+ 1481 |             shape=ft.RoundedRectangleBorder(radius=12),
+ 1482 |             margin=MG(12, 0, 12, 12),
+ 1483 |             action=act,
+ 1484 |         ))
+ 1485 |     except Exception:
+ 1486 |         print(f"[toast] {text}")
+ 1487 | 
+ 1488 | 
+ 1489 | def _err_text(ex):
+ 1490 |     """پیام خطای HTTP رو خوانا می‌کنه."""
+ 1491 |     try:
+ 1492 |         import httpx
+ 1493 |         if isinstance(ex, httpx.HTTPStatusError):
+ 1494 |             d = ex.response.json()
+ 1495 |             return str(d.get("detail") or d)
+ 1496 |     except Exception:
+ 1497 |         pass
+ 1498 |     return str(ex)
+ 1499 | 
+ 1500 | 

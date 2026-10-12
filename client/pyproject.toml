@@ -1,0 +1,31 @@
+# قلابِ ساختِ فلات.
+#
+# flet_cli هنگامِ ساخت، این فایل را می‌خواند و بخشِ
+# `[tool.flet.flutter.pubspec]` اش را رویِ `pubspec.yaml` پروژهٔ فلاترِ تولیدی
+# می‌نویسد (flet_cli/commands/build_base.py ≈ خط 1684). یعنی اینجا دقیقاً
+# همان جایی است که می‌توان نسخهٔ یک بستهٔ Dart را میخ‌کوب کرد — بدون دست‌زدن
+# به سورسِ flet و بدون اینکه فلتا هر بار پروژه را از نو بسازد.
+#
+# ── چرا `jni` میخ‌کوب شده؟ ─────────────────────────────────────────
+# `flet_video` → `media_kit` → `media_kit_video` → `jni_flutter`. فلاتر
+# `jni_flutter` را به‌صورت خودکار به آخرین نسخه (۱.۰.��) می‌برد، ولی
+# `jni` را روی ۱.۰.۰ میخ‌کوب می‌کند. و `jni_flutter 1.0.4` با `jni 1.0.0`
+# ناسازگار است: در `generated_plugin.dart:46` یک
+#
+#     const _$jniVersionCheck = jni$_.JniVersionCheck(1, 1);
+#
+# می‌سازد، ولی `jni` نسخهٔ کوچک را *compile-time* چک می‌کند:
+#
+#     const JniVersionCheck(int major, int minor)
+#         : assert(actualMajorVersion == major && actualMinorVersion >= minor,
+#                   '...')
+#
+# چون `assert` در حالتِ constant، باید در زمانِ کامپایل ارزیابی شود و وسطِ
+# `kernel_snapshot_program` گیر می‌کند ⇒
+# «Error: Constant evaluation error» ⇒ BUILD FAILED.
+#
+# یعنی این خطا هیچ ربطی به سورسِ ما ندارد؛ شکستِ زنجیرهٔ وابستگیِ
+# flet_video است. میخ‌کوب کردنِ `jni_flutter` به ۱.۰.۳ (که
+# `JniVersionCheck(1, 0)` می‌خواهد ⇒ با ۱.۰.۰ سازگار است) آن را می‌شکند.
+[tool.flet.flutter.pubspec]
+dependency_overrides.jni_flutter = "1.0.3"
