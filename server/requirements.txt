@@ -1,15 +1,12 @@
-# Rafigram server dependencies
 fastapi
 uvicorn[standard]
 sqlmodel
-aiosqlite
 greenlet
+aiosqlite
+sqlalchemy[asyncio]
 pyjwt
 bcrypt
 python-multipart
 websockets
-# رباتِ تلگرام (کدِ دعوت) با همین درخواست‌های HTTP کار می‌کند
 httpx==0.28.1
-# Web Push (RFC 8291 + VAPID): ECDH/HKDF/AES-GCM و امضای ES256 توکنِ VAPID.
-# اعلانِ بیرونِ برنامه‌ی نسخه‌ی وب بی این کار نمی‌کند؛ کانالِ اندروید به آن کاری ندارد.
 cryptography==46.0.7
