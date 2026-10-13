@@ -2,16 +2,16 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# نصب وابستگی‌ها (لایه‌ی جدا تا کش بشه)
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install --no-cache-dir greenlet
+# نصب ابزارهای بیلد برای پکیج‌های C مثل greenlet
+RUN apt-get update && apt-get install -y --no-install-recommends gcc python3-dev && rm -rf /var/lib/apt/lists/*
 
-# کد اپلیکیشن
+COPY requirements.txt .
+RUN pip install --no-cache-dir -U pip setuptools wheel
+RUN pip install --no-cache-dir greenlet "sqlalchemy[asyncio]"
+RUN pip install --no-cache-dir -r requirements.txt
+
 COPY app ./app
 
-# پوشه‌ی داده؛ روی Railway یه volume دائمی همین مسیر mount می‌شه
 ENV DATA_DIR=/data
 
-# Railway مقدار $PORT رو موقع اجرا ست می‌کنه
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
