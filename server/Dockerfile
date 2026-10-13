@@ -5,6 +5,7 @@ WORKDIR /app
 # نصب وابستگی‌ها (لایه‌ی جدا تا کش بشه)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir greenlet
 
 # کد اپلیکیشن
 COPY app ./app
